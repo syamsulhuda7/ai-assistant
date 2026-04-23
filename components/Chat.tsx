@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Send, Bot, User, Sparkles } from "lucide-react";
 
 type Message = {
   role: "user" | "ai" | string;
   content: string;
-  created_at: string; // 🔥 tambahin ini
+  created_at: string;
 };
 
 export default function Chat() {
@@ -17,12 +18,11 @@ export default function Chat() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const SESSION_TIMEOUT = 60 * 1000; // 1 menit
+  const SESSION_TIMEOUT = 600 * 1000;
 
   function getValidSession() {
     const storedSession = localStorage.getItem("session_id");
     const lastActivity = localStorage.getItem("last_activity");
-
     const now = Date.now();
 
     if (storedSession && lastActivity) {
@@ -33,7 +33,6 @@ export default function Chat() {
       }
     }
 
-    // 🔥 expired → buat baru
     const newSession = crypto.randomUUID();
 
     localStorage.setItem("session_id", newSession);
@@ -42,29 +41,13 @@ export default function Chat() {
     return { sessionId: newSession, isNew: true };
   }
 
-  // 🔥 Init session
   useEffect(() => {
     const { sessionId } = getValidSession();
     setSessionId(sessionId);
   }, []);
-  // useEffect(() => {
-  //   let id = localStorage.getItem("session_id");
-
-  //   if (!id) {
-  //     id = crypto.randomUUID();
-  //     localStorage.setItem("session_id", id);
-  //   }
-
-  //   setSessionId(id);
-  // }, []);
-
-  // 🔥 Load history dari DB
 
   useEffect(() => {
-    if (!sessionId) {
-      // console.error("Session ID belum siap");
-      return;
-    }
+    if (!sessionId) return;
 
     const loadHistory = async () => {
       const res = await fetch("/api/history", {
@@ -86,12 +69,10 @@ export default function Chat() {
     loadHistory();
   }, [sessionId]);
 
-  // 🔥 Auto scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🔥 Auto focus
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -102,7 +83,6 @@ export default function Chat() {
 
     if (!input.trim() || loading || !validSessionId) return;
 
-    // 🔥 kalau session baru → reset chat
     if (isNew) {
       setMessages([
         {
@@ -122,7 +102,7 @@ export default function Chat() {
       {
         role: "user",
         content: input,
-        created_at: now, // 🔥 realtime
+        created_at: now,
       },
     ];
 
@@ -147,7 +127,7 @@ export default function Chat() {
         {
           role: "ai",
           content: data.reply,
-          created_at: new Date().toISOString(), // fallback
+          created_at: new Date().toISOString(),
         },
       ]);
     } catch {
@@ -155,8 +135,8 @@ export default function Chat() {
         ...newMessages,
         {
           role: "ai",
-          content: "Terjadi kesalahan, silahkan coba lagi",
-          created_at: new Date().toISOString(), // fallback
+          content: "Terjadi kesalahan, silakan coba lagi.",
+          created_at: new Date().toISOString(),
         },
       ]);
     } finally {
@@ -173,98 +153,117 @@ export default function Chat() {
   }
 
   return (
-    <div className="max-w-xl mx-auto mt-10 px-4">
-      <h2 className="text-2xl font-semibold text-center mb-4">
-        AI Customer Support
-      </h2>
+    <div className="h-screen overflow-hidden bg-black text-white px-4 py-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-4">
+            <Sparkles className="w-4 h-4 text-white" />
+            <span className="text-sm text-gray-300">TokoKita AI Assistant</span>
+          </div>
 
-      {/* Chat Box */}
-      <div className="h-[400px] overflow-y-auto border rounded-xl p-4 bg-gray-50 shadow-sm">
-        <div className="flex flex-col gap-3">
-          {/* Empty State */}
-          {messages.length === 0 && (
-            <div className="text-center text-gray-400 text-sm mt-20">
-              Mulai percakapan dengan AI...
-            </div>
-          )}
+          <h1 className="text-4xl font-bold tracking-tight mb-2">
+            AI Customer Support
+          </h1>
+          <p className="text-gray-400 max-w-xl mx-auto">
+            Pelayanan cepat untuk pertanyaan seputar pengiriman, pemesanan,
+            promo, dan bantuan pelanggan.
+          </p>
+        </div>
 
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex items-end gap-2 ${
-                msg.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              {/* Avatar AI */}
-              {msg.role === "ai" && (
-                <div className="w-6 h-6 rounded-full bg-gray-400" />
+        <div className="rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
+          <div className="h-[calc(100vh-260px)] max-h-[calc(100vh-260px)] overflow-y-auto p-6 bg-gradient-to-b from-zinc-950 to-zinc-900">
+            <div className="flex flex-col gap-5">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-center py-24">
+                  <Bot className="w-12 h-12 text-gray-500 mb-4" />
+                  <p className="text-gray-400 text-sm">
+                    Mulai percakapan dengan AI Customer Support
+                  </p>
+                </div>
               )}
 
-              <div className="flex flex-col">
+              {messages.map((msg, i) => (
                 <div
-                  className={`px-4 py-2 rounded-2xl max-w-[75%] text-sm ${
-                    msg.role === "user"
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-200 text-gray-800"
+                  key={i}
+                  className={`flex items-end gap-3 ${
+                    msg.role === "user" ? "justify-end" : "justify-start"
                   }`}
                 >
-                  {msg.content}
+                  {msg.role === "ai" && (
+                    <div className="w-10 h-10 rounded-2xl bg-zinc-800 border border-white/10 flex items-center justify-center shrink-0">
+                      <Bot className="w-5 h-5 text-gray-300" />
+                    </div>
+                  )}
+
+                  <div className="max-w-[75%]">
+                    <div
+                      className={`px-5 py-3 rounded-3xl text-sm leading-relaxed shadow-lg ${
+                        msg.role === "user"
+                          ? "bg-white text-black rounded-br-md"
+                          : "bg-zinc-800 text-gray-100 rounded-bl-md border border-white/5"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+
+                    <p className="text-[11px] text-gray-500 mt-2 px-2">
+                      {formatTime(msg.created_at)}
+                    </p>
+                  </div>
+
+                  {msg.role === "user" && (
+                    <div className="w-10 h-10 rounded-2xl bg-white text-black flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5" />
+                    </div>
+                  )}
                 </div>
+              ))}
 
-                <span className="text-[10px] text-gray-400 mt-1 px-1">
-                  {formatTime(msg.created_at)}
-                </span>
-              </div>
-
-              {/* Avatar User */}
-              {msg.role === "user" && (
-                <div className="w-6 h-6 rounded-full bg-blue-500" />
+              {loading && (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-800 border border-white/10 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-gray-300" />
+                  </div>
+                  <div className="px-5 py-3 rounded-3xl bg-zinc-800 border border-white/5 text-sm text-gray-400 animate-pulse">
+                    AI sedang mengetik...
+                  </div>
+                </div>
               )}
-            </div>
-          ))}
 
-          {/* Typing Indicator */}
-          {loading && (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <div className="w-6 h-6 rounded-full bg-gray-400" />
-              <span>AI sedang mengetik...</span>
+              <div ref={bottomRef} />
             </div>
-          )}
+          </div>
 
-          <div ref={bottomRef} />
+          <div className="border-t border-white/10 p-5 bg-zinc-950">
+            <div className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2">
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (!loading) sendMessage();
+                  }
+                }}
+                placeholder="Tulis pesan Anda..."
+                className="flex-1 bg-transparent px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none"
+              />
+
+              <button
+                onClick={sendMessage}
+                disabled={loading}
+                className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-all ${
+                  loading
+                    ? "bg-zinc-700 cursor-not-allowed"
+                    : "bg-white text-black hover:scale-105"
+                }`}
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Input */}
-      <div className="flex mt-4 gap-2">
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-
-              if (!loading) {
-                sendMessage();
-              }
-            }
-          }}
-          placeholder="Ketik pesan..."
-          className="flex-1 border rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
-
-        <button
-          onClick={sendMessage}
-          disabled={loading}
-          className={`px-4 py-2 rounded-xl text-white transition ${
-            loading
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-blue-500 hover:bg-blue-600"
-          }`}
-        >
-          Send
-        </button>
       </div>
     </div>
   );

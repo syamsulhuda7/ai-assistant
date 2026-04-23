@@ -1,232 +1,297 @@
 import OpenAI from "openai";
-import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { supabase } from "../../../lib/supabase";
+
+// ==================================================
+// SIMPLE VERSION - TOKOKITA AI SUPPORT
+// ==================================================
+
+type Role = "user" | "ai";
+
+type SourceType =
+  | "user"
+  | "cache"
+  | "ai"
+  | "db:products_category"
+  | "db:products_best_seller";
 
 const client = new OpenAI({
   apiKey: process.env.MAIA_API_KEY,
   baseURL: "https://api.maiarouter.ai/v1",
 });
 
-const basePrompt = `
-Kamu adalah customer support dari toko online bernama "TokoKita".
+const BASE_COMPANY_INFO = `
+Kamu adalah AI Customer Support resmi dari TokoKita.
 
-Informasi:
-- Pengiriman: 2-5 hari kerja
-- COD tersedia di: Jakarta, Surabaya, Bandung
-- Jam operasional: 08.00 - 17.00
+Kamu hanya melayani pertanyaan berikut:
+- Cara melakukan pemesanan
+- Informasi pengiriman
+- Informasi COD
+- Jam pengiriman
+- Hari operasional pengiriman
+- Promo dan diskon yang sedang berjalan
+- Bantuan pelayanan umum terkait toko
 
-Aturan:
-- Jawaban singkat, jelas, ramah
-- Bahasa Indonesia santai tapi sopan
-- Jika tidak yakin, arahkan ke admin
-- Jangan mengarang informasi di luar data yang diberikan
+Informasi perusahaan:
+- Pesanan hanya melalui website: https://webkita.com
+- Pesanan maksimal jam 12 siang dikirim di hari yang sama
+- Pengiriman setiap hari kecuali tanggal merah
+- COD tersedia untuk seluruh Pulau Jawa
+- Promo aktif: diskon 10% minimal belanja Rp200.000 sampai 22 Juni
+- Promo beli 2 gratis 1 untuk produk berlabel khusus
+
+Aturan penting:
+- Jawaban harus natural seperti customer service manusia
+- Jangan mengarang data
+- Gunakan hanya data yang diberikan
+- Jika user bertanya tentang produk, stok, harga, kategori, atau rekomendasi produk, arahkan user untuk melihat langsung melalui website kami di https://webkita.com
+- Jangan menjawab detail produk dari database
+- Singkat, ramah, profesional
 `;
 
-const faqs = [
-  {
-    keywords: ["cod", "bayar ditempat"],
-    answer: "Ya, kami menyediakan COD di Jakarta, Surabaya, dan Bandung.",
-    followUpRequired: true,
-  },
-  {
-    keywords: ["pengiriman", "berapa lama", "delivery"],
-    answer: "Pengiriman memakan waktu 2-5 hari kerja.",
-    followUpRequired: false,
-  },
-  {
-    keywords: ["jam buka", "jam operasional"],
-    answer: "Kami buka pukul 08.00 - 17.00.",
-    followUpRequired: false,
-  },
-];
+// ==================================================
+// HELPERS
+// ==================================================
 
-function findFAQ(message: string) {
-  const lowerMsg = message.toLowerCase();
+function normalizeQuestion(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[!?.,;:()[\]{}"']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  for (const faq of faqs) {
-    for (const keyword of faq.keywords) {
-      if (lowerMsg.includes(keyword)) {
-        return faq;
-      }
-    }
+function addDays(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+function calculateCost(inputTokens: number, outputTokens: number) {
+  const USD_TO_IDR = 17000;
+  const PRICE_PER_1M_TOKEN = 0.15;
+
+  const inputCostUsd = (inputTokens / 1_000_000) * PRICE_PER_1M_TOKEN;
+  const outputCostUsd = (outputTokens / 1_000_000) * PRICE_PER_1M_TOKEN;
+
+  const inputCost = inputCostUsd * USD_TO_IDR;
+  const outputCost = outputCostUsd * USD_TO_IDR;
+
+  return {
+    input_token: inputTokens,
+    output_token: outputTokens,
+    total_token: inputTokens + outputTokens,
+    input_cost: Number(inputCost.toFixed(2)),
+    output_cost: Number(outputCost.toFixed(2)),
+    total_cost: Number((inputCost + outputCost).toFixed(2)),
+  };
+}
+
+async function saveMessage({
+  session_id,
+  role,
+  content,
+  source,
+  usage,
+}: {
+  session_id: string;
+  role: Role;
+  content: string;
+  source: SourceType;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
+}) {
+  if (!session_id) {
+    console.error("session_id is required");
+    return;
   }
 
+  const cost = calculateCost(
+    usage?.prompt_tokens || 0,
+    usage?.completion_tokens || 0,
+  );
+
+  const payload = {
+    session_id,
+    role,
+    content,
+    source,
+    input_token: cost.input_token,
+    output_token: cost.output_token,
+    total_token: cost.total_token,
+    input_cost: cost.input_cost,
+    output_cost: cost.output_cost,
+    total_cost: cost.total_cost,
+    created_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from("messages").insert(payload);
+
+  if (error) {
+    console.error("Failed saveMessage:", error.message, payload);
+  }
+}
+
+async function getCache(question: string) {
+  // const today = new Date().toISOString().split("T")[0];
+
+  const { data } = await supabase
+    .from("ai_cache")
+    .select("*")
+    .eq("question", question)
+    // .gte("expired_at", today)
+    .maybeSingle();
+
+  return data;
+}
+
+async function saveCache(question: string, answer: string) {
+  await supabase.from("ai_cache").upsert({
+    question,
+    answer,
+    usage_count: 1,
+    created_at: new Date().toISOString(),
+    expired_at: addDays(7),
+  });
+}
+
+function isProductQuestion(message: string) {
+  const text = message.toLowerCase();
+
+  const keywords = [
+    "produk",
+    "barang",
+    "stok",
+    "harga",
+    "kategori",
+    "best seller",
+    "terlaris",
+    "rekomendasi",
+    "skincare",
+    "fashion",
+    "elektronik",
+    "makanan",
+    "rumah tangga",
+  ];
+
+  return keywords.some((k) => text.includes(k));
+}
+
+async function getProductData() {
   return null;
 }
 
-type Message = {
-  role: "user" | "ai";
-  content: string;
-};
+// ==================================================
+// MAIN
+// ==================================================
 
-function formatMessages(history: Message[]): ChatCompletionMessageParam[] {
-  return history.map((msg) => ({
-    role: msg.role === "ai" ? "assistant" : "user",
-    content: msg.content,
-  }));
+async function ensureSession(session_id: string) {
+  if (!session_id) return;
+
+  const { error } = await supabase.from("sessions").upsert(
+    {
+      id: session_id,
+      last_activity: new Date().toISOString(),
+    },
+    {
+      onConflict: "id",
+    },
+  );
+
+  if (error) {
+    console.error("Failed ensureSession:", error.message);
+  }
 }
 
 export async function POST(req: Request) {
-  const { message, history, session_id } = await req.json();
-  console.log("session : " + session_id);
-  const recentHistory = history?.slice(-6) || [];
+  const { message, session_id } = await req.json();
 
-  // 🔥 Detect follow-up
-  const lastUserMessage =
-    recentHistory
-      .slice()
-      .reverse()
-      .find((msg: any) => msg.role === "user")
-      ?.content?.toLowerCase() || "";
+  const normalizedQuestion = normalizeQuestion(message);
 
-  const isFollowUp =
-    message.toLowerCase().length < 25 && lastUserMessage.length > 0;
+  // pastikan session tersedia dulu agar tidak kena foreign key error
+  await ensureSession(session_id);
 
-  // 🔥 STEP 1: cek FAQ
-  const faq = findFAQ(message);
-
-  if (session_id) {
-    await supabase
-      .from("sessions")
-      .upsert(
-        { id: session_id, last_activity: new Date() },
-        { onConflict: "id" },
-      );
-  }
-
-  // 🔥 SAVE USER MESSAGE (selalu disimpan)
-  await supabase.from("messages").insert({
+  // save user message
+  await saveMessage({
     session_id,
     role: "user",
     content: message,
+    source: "user",
   });
 
-  await supabase.from("messages").insert({
-    session_id,
-    role: "user",
-    content: message,
-  });
+  // cache first
+  const cache = await getCache(normalizedQuestion);
 
-  if (faq && !isFollowUp && !faq.followUpRequired) {
-    // 🔥 SAVE FAQ RESPONSE (tanpa AI → token = 0)
-    await supabase.from("messages").insert({
+  if (cache) {
+    await saveMessage({
       session_id,
       role: "ai",
-      content: faq.answer,
-      input_tokens: 0,
-      output_tokens: 0,
-      total_tokens: 0,
-      cost: 0,
+      content: cache.answer,
+      source: "cache",
     });
 
     return Response.json({
-      reply: faq.answer,
+      reply: cache.answer,
+      source: "cache",
     });
   }
 
-  // 🔥 STEP 2: AI
-  try {
-    const systemPrompt = `
-${basePrompt}
+  let extraContext = "";
+  let source: SourceType = "ai";
 
-Tugas kamu:
-1. Pahami maksud user (pertanyaan, komplain, marah, pujian)
-2. Respon:
-- Komplain → empati + solusi
-- Marah → minta maaf + arahkan ke admin
-- Pujian → apresiasi
-- Pertanyaan → jawab jelas
+  // jika pertanyaan produk, arahkan ke website
+  if (isProductQuestion(message)) {
+    extraContext = `
+User menanyakan tentang produk.
 
-Gunakan hanya informasi yang tersedia.
+Jawaban yang benar:
+Arahkan user secara sopan untuk melihat detail produk, harga, stok, dan kategori langsung melalui website resmi kami di https://webkita.com
+Jangan menjelaskan detail produk secara langsung.
 `;
 
-    const aiMessages: ChatCompletionMessageParam[] = [
+    source = "ai";
+  }
+
+  const aiRes = await client.chat.completions.create({
+    model: "openai/gpt-4o-mini",
+    temperature: 0.3,
+    max_tokens: 250,
+    messages: [
       {
         role: "system",
-        content: systemPrompt,
+        content: BASE_COMPANY_INFO,
       },
-      ...formatMessages(recentHistory),
       {
         role: "user",
-        content: message,
+        content: `User message: ${message}\n\n${extraContext}`,
       },
-    ];
+    ],
+  });
 
-    const response = await client.chat.completions.create({
-      model: "openai/gpt-4o-mini",
-      messages: aiMessages,
-      max_tokens: 100,
-      temperature: 0.7,
-    });
+  const reply =
+    aiRes.choices[0].message.content ||
+    "Maaf, saya belum bisa membantu untuk pertanyaan tersebut.";
 
-    const reply = response.choices[0].message.content;
+  const usage = aiRes.usage || {
+    prompt_tokens: 0,
+    completion_tokens: 0,
+  };
 
-    type ResponseUsage = {
-      total_tokens: number;
-      prompt_tokens: number;
-      completion_tokens: number;
-    };
-    const usage: ResponseUsage = response.usage || {
-      total_tokens: 0,
-      prompt_tokens: 0,
-      completion_tokens: 0,
-    };
+  // save ai response
+  await saveMessage({
+    session_id,
+    role: "ai",
+    content: reply,
+    source,
+    usage,
+  });
 
-    // 🔥 Estimasi cost
-    const inputRate = 0.15 / 1_000_000;
-    const outputRate = 0.6 / 1_000_000;
+  // save cache
+  await saveCache(normalizedQuestion, reply);
 
-    const inputTokens = usage.prompt_tokens || 0;
-    const outputTokens = usage.completion_tokens || 0;
-
-    const inputCostUSD = inputTokens * inputRate;
-    const outputCostUSD = outputTokens * outputRate;
-
-    const totalCostUSD = inputCostUSD + outputCostUSD;
-
-    const USD_TO_IDR = Number(process.env.USD_TO_IDR || 17000);
-
-    const inputCost = inputCostUSD * USD_TO_IDR;
-    const outputCost = outputCostUSD * USD_TO_IDR;
-    const totalCost = totalCostUSD * USD_TO_IDR;
-
-    // 🔥 SAVE AI RESPONSE
-    const { error } = await supabase.from("messages").insert({
-      session_id,
-      role: "ai",
-      content: reply,
-
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
-
-      input_cost: inputCost,
-      output_cost: outputCost,
-      total_cost: totalCost,
-    });
-
-    if (error) {
-      console.error("DB Error:", error);
-
-      await supabase.from("messages").insert({
-        session_id,
-        role: "ai",
-        content: "Maaf, terjadi kesalahan dari AI.",
-        input_tokens: 0,
-        output_tokens: 0,
-        input_cost: 0,
-        output_cost: 0,
-        total_cost: 0,
-      });
-    }
-
-    return Response.json({
-      reply,
-    });
-  } catch (error) {
-    console.error(error);
-
-    return Response.json({
-      reply: "Maaf, terjadi kesalahan dari AI.",
-    });
-  }
+  return Response.json({
+    reply,
+    source,
+  });
 }
