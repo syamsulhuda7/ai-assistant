@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Sparkles } from "lucide-react";
+import { Send, Bot, User, Sparkles, BarChart3 } from "lucide-react";
+import Link from "next/link";
 
 type Message = {
   role: "user" | "ai" | string;
@@ -153,25 +154,46 @@ export default function Chat() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-black text-white px-4 py-4">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-4">
-            <Sparkles className="w-4 h-4 text-white" />
-            <span className="text-sm text-gray-300">TokoKita AI Assistant</span>
-          </div>
+    <div className="h-screen overflow-hidden bg-black text-white px-4 md:px-6 py-6">
+      <div className="max-w-6xl mx-auto h-full flex flex-col">
+        {/* HEADER */}
+        <div className="mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+            <div>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-4">
+                <Sparkles className="w-4 h-4 text-white" />
+                <span className="text-sm text-gray-300">
+                  TokoKita AI Assistant
+                </span>
+              </div>
 
-          <h1 className="text-4xl font-bold tracking-tight mb-2">
-            AI Customer Support
-          </h1>
-          <p className="text-gray-400 max-w-xl mx-auto">
-            Pelayanan cepat untuk pertanyaan seputar pengiriman, pemesanan,
-            promo, dan bantuan pelanggan.
-          </p>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
+                AI Customer Support
+              </h1>
+
+              <p className="text-gray-400 max-w-xl text-sm md:text-base">
+                Pelayanan cepat untuk pertanyaan seputar pengiriman, pemesanan,
+                promo, dan bantuan pelanggan.
+              </p>
+            </div>
+
+            {/* BUTTON TO DASHBOARD */}
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-white/10 bg-zinc-900 hover:bg-zinc-800 transition-all shadow-lg"
+            >
+              <BarChart3 className="w-5 h-5 text-white" />
+              <span className="text-sm font-medium text-white">
+                Dashboard Analytics
+              </span>
+            </Link>
+          </div>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
-          <div className="h-[calc(100vh-260px)] max-h-[calc(100vh-260px)] overflow-y-auto p-6 bg-gradient-to-b from-zinc-950 to-zinc-900">
+        {/* CHAT CONTAINER */}
+        <div className="flex-1 rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden flex flex-col min-h-0">
+          {/* CHAT BODY */}
+          <div className="flex-1 overflow-y-auto p-5 md:p-6 bg-gradient-to-b from-zinc-950 to-zinc-900 min-h-0">
             <div className="flex flex-col gap-5">
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center py-24">
@@ -195,7 +217,7 @@ export default function Chat() {
                     </div>
                   )}
 
-                  <div className="max-w-[75%]">
+                  <div className="max-w-[80%]">
                     <div
                       className={`px-5 py-3 rounded-3xl text-sm leading-relaxed shadow-lg ${
                         msg.role === "user"
@@ -224,6 +246,7 @@ export default function Chat() {
                   <div className="w-10 h-10 rounded-2xl bg-zinc-800 border border-white/10 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-gray-300" />
                   </div>
+
                   <div className="px-5 py-3 rounded-3xl bg-zinc-800 border border-white/5 text-sm text-gray-400 animate-pulse">
                     AI sedang mengetik...
                   </div>
@@ -234,7 +257,8 @@ export default function Chat() {
             </div>
           </div>
 
-          <div className="border-t border-white/10 p-5 bg-zinc-950">
+          {/* INPUT AREA */}
+          <div className="border-t border-white/10 bg-zinc-950 p-4 md:p-5">
             <div className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2">
               <input
                 ref={inputRef}
