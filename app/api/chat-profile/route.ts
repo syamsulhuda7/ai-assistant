@@ -9,6 +9,30 @@ type Role = "user" | "ai";
 
 type SourceType = "user" | "cache" | "ai";
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://syam7profile.vercel.app",
+];
+
+function getCorsHeaders(origin: string | null) {
+  const isAllowed = origin && allowedOrigins.includes(origin);
+
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : "null",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+export async function OPTIONS(req: Request) {
+  const origin = req.headers.get("origin");
+
+  return new Response(null, {
+    status: 200,
+    headers: getCorsHeaders(origin),
+  });
+}
+
 const client = new OpenAI({
   apiKey: process.env.MAIA_API_KEY,
   baseURL: "https://api.maiarouter.ai/v1",
@@ -231,11 +255,10 @@ export async function POST(req: Request) {
 
   if (!message || !session_id) {
     return Response.json(
-      {
-        error: "message and session_id are required",
-      },
+      { error: "message and session_id are required" },
       {
         status: 400,
+        headers: getCorsHeaders(req.headers.get("origin")),
       },
     );
   }
@@ -261,10 +284,17 @@ export async function POST(req: Request) {
       source: "cache",
     });
 
-    return Response.json({
-      reply: cache.answer,
-      source: "cache",
-    });
+    const origin = req.headers.get("origin");
+
+    return Response.json(
+      {
+        reply: cache.answer,
+        source: "cache",
+      },
+      {
+        headers: getCorsHeaders(origin),
+      },
+    );
   }
 
   const aiRes = await client.chat.completions.create({
@@ -302,8 +332,15 @@ export async function POST(req: Request) {
 
   await saveCache(normalizedQuestion, reply);
 
-  return Response.json({
-    reply,
-    source: "ai",
-  });
+  const origin = req.headers.get("origin");
+
+  return Response.json(
+    {
+      reply,
+      source: "ai",
+    },
+    {
+      headers: getCorsHeaders(origin),
+    },
+  );
 }
