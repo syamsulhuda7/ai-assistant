@@ -210,62 +210,6 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* TOP SESSION */}
-        <section className="mb-8 overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl">
-          <div className="border-b border-white/10 bg-zinc-950 p-6">
-            <h2 className="text-lg font-semibold">
-              Top Sessions by Lowest Avg Chat Cost
-            </h2>
-
-            <p className="mt-1 text-sm text-gray-400">
-              Session dengan rata-rata biaya per chat paling rendah
-            </p>
-          </div>
-
-          <div className="space-y-3 p-6">
-            {sortedTopSessions.map((session, index) => {
-              const avgCost = session.messageCount
-                ? session.cost / session.messageCount
-                : 0;
-
-              return (
-                <div
-                  key={session.session_id}
-                  className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
-                >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-sm text-gray-400">#{index + 1}</p>
-
-                      <p className="font-medium text-white">
-                        {session.session_id.slice(0, 8)}...
-                      </p>
-                    </div>
-
-                    <div className="text-sm text-gray-300">
-                      {session.messageCount} messages
-                    </div>
-
-                    <div className="text-sm text-gray-300">
-                      {formatRupiah(session.cost)}
-                    </div>
-
-                    <div className="text-sm text-gray-300">
-                      {formatRupiah(avgCost)}
-                      <span className="ml-1 text-gray-500">/ msg</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2 border-t border-white/5 pt-3 text-sm text-gray-400">
-                    <Calendar className="w-4 h-4" />
-                    <span>Last chat: {formatDate(session.last_chat_date)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
         {/* LINE CHART */}
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl">
           <div className="border-b border-white/10 bg-zinc-950 p-6">
@@ -300,16 +244,6 @@ export default function Dashboard() {
                       stroke="#27272a"
                       vertical={false}
                     />
-
-                    {/* <XAxis
-                      dataKey="date"
-                      stroke="#9ca3af"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={12}
-                      tickFormatter={(value) => formatShortDate(String(value))}
-                    /> */}
 
                     <XAxis
                       dataKey="date"
@@ -378,42 +312,6 @@ export default function Dashboard() {
                       }
                     />
 
-                    {/* <Tooltip
-                      cursor={{
-                        stroke: "#52525b",
-                        strokeWidth: 1,
-                        strokeDasharray: "4 4",
-                      }}
-                      contentStyle={{
-                        backgroundColor: "#09090b",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: "16px",
-                        padding: "12px 14px",
-                        boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-                      }}
-                      labelStyle={{
-                        color: "#ffffff",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        marginBottom: "8px",
-                      }}
-                      itemStyle={{
-                        color: "#d4d4d8",
-                        fontSize: "13px",
-                      }}
-                      formatter={(value) => [
-                        formatRupiah(Number(value || 0)),
-                        "Average Cost",
-                      ]}
-                      labelFormatter={(label) =>
-                        new Date(String(label)).toLocaleDateString("id-ID", {
-                          day: "2-digit",
-                          month: "long",
-                          year: "numeric",
-                        })
-                      }
-                    /> */}
-
                     <Line
                       type="monotone"
                       dataKey="avg_cost"
@@ -437,6 +335,62 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* TOP SESSION */}
+        <section className="my-8 overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl">
+          <div className="border-b border-white/10 bg-zinc-950 p-6">
+            <h2 className="text-lg font-semibold">
+              Top Sessions by Lowest Avg Chat Cost
+            </h2>
+
+            <p className="mt-1 text-sm text-gray-400">
+              Session dengan rata-rata biaya per chat paling rendah
+            </p>
+          </div>
+
+          <div className="space-y-3 p-6">
+            {sortedTopSessions.map((session, index) => {
+              const avgCost = session.messageCount
+                ? session.cost / session.messageCount
+                : 0;
+
+              return (
+                <div
+                  key={session.session_id}
+                  className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-sm text-gray-400">#{index + 1}</p>
+
+                      <p className="font-medium text-white">
+                        {session.session_id.slice(0, 8)}...
+                      </p>
+                    </div>
+
+                    <div className="text-sm text-gray-300">
+                      {session.messageCount} messages
+                    </div>
+
+                    <div className="text-sm text-gray-300">
+                      {formatRupiah(session.cost)}
+                    </div>
+
+                    <div className="text-sm text-gray-300">
+                      {formatRupiah(avgCost)}
+                      <span className="ml-1 text-gray-500">/ msg</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-2 border-t border-white/5 pt-3 text-sm text-gray-400">
+                    <Calendar className="w-4 h-4" />
+                    <span>Last chat: {formatDate(session.last_chat_date)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       </div>
